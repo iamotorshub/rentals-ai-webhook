@@ -95,33 +95,8 @@ Rentals AI Costa - Monte Hermoso"""
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
-```
 
-**Commit changes**
 
-Render va a re-deployar automáticamente.
 
----
 
-## 📝 PASO 2: MODIFICAR PROMPT DE MATÍAS
 
-El problema es que ElevenLabs NO está guardando las variables. Necesitamos ser MÁS EXPLÍCITOS.
-
-En el prompt de Matías, **AL PRINCIPIO**, agregá esto:
-```
-# INSTRUCCIONES DE VARIABLES (CRÍTICO)
-
-Cuando captures información del cliente, GUARDÁ en estas variables:
-
-- Cuando te diga su nombre completo → GUARDÁ en variable: nombre
-- Cuando te diga su email → GUARDÁ en variable: email  
-- Cuando te diga su teléfono → GUARDÁ en variable: telefono
-- Cuando agende día de demo → GUARDÁ en variable: dia
-- Cuando agende hora de demo → GUARDÁ en variable: hora
-
-Ejemplo:
-Cliente: "Me llamo Juan Pérez"
-Acción interna: [guardar "Juan Pérez" en variable nombre]
-
-Cliente: "Mi email es juan@example.com"
-Acción interna: [guardar "juan@example.com" en variable email]
