@@ -3,6 +3,7 @@ import os
 import re
 import requests
 import smtplib
+from threading import Thread
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -12,30 +13,23 @@ app = Flask(__name__)
 TELEGRAM_BOT_TOKEN = "8334312092:AAGiK-6DEkboJHfEBFrv893SqfYBf09mps0"
 TELEGRAM_CHAT_ID = "5392151099"
 
-# 🔐 Configuración Email
+# 🔐 Configuración Email (IA MotorHub)
 REMITENTE = "contacto@iamotorshub.com"
 COPIA_OCULTA = "contacto@iamotorshub.com"
-EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD", "motorhub2024!")  # o App Password si Gmail usa 2FA
+EMAIL_PASSWORD = "wbeqevwlvcjhirdj"
 
 # 🖼️ Logo IA MotorHub (Drive público)
 LOGO_URL = "https://drive.google.com/uc?export=view&id=13G29FFEEI8oK4zC1oSpgwA_-LM_T4KfL"
 
+
 # 🧠 Extraer datos del resumen
 def extraer_datos_del_resumen(transcript: str):
-    datos = {
-        'nombre': 'No especificado',
-        'email': 'No especificado',
-        'telefono': 'No especificado',
-        'dia': 'No especificado',
-        'hora': 'No especificado'
-    }
-
+    datos = {'nombre': 'No especificado', 'email': 'No especificado', 'telefono': 'No especificado', 'dia': 'No especificado', 'hora': 'No especificado'}
     if not transcript:
         return datos
 
     patron = re.compile(r'(RESUMEN\s*DEMO|TUS\s*DATOS)\s*:?\s*(.*)', re.IGNORECASE | re.DOTALL)
     match = patron.search(transcript)
-
     if match:
         contenido = match.group(2)
         for line in contenido.split('\n'):
@@ -57,19 +51,22 @@ def extraer_datos_del_resumen(transcript: str):
 
 # 📩 Envío a Telegram
 def enviar_mensaje_telegram(nombre, email, telefono, dia, hora):
-    mensaje = (
-        f"📋 *Nuevo Lead Rentals AI*\n\n"
-        f"- *Nombre:* {nombre}\n"
-        f"- *Email:* {email}\n"
-        f"- *Teléfono:* {telefono}\n"
-        f"- *Día:* {dia}\n"
-        f"- *Hora:* {hora}"
-    )
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": mensaje, "parse_mode": "Markdown"})
+    try:
+        mensaje = (
+            f"📋 *Nuevo Lead Rentals AI*\n\n"
+            f"- *Nombre:* {nombre}\n"
+            f"- *Email:* {email}\n"
+            f"- *Teléfono:* {telefono}\n"
+            f"- *Día:* {dia}\n"
+            f"- *Hora:* {hora}"
+        )
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": mensaje, "parse_mode": "Markdown"})
+    except Exception as e:
+        print("⚠️ Error al enviar Telegram:", e)
 
 
-# 📧 Envío de correo con plantilla HTML elegante
+# 📧 Envío de correo HTML con logo IA MotorHub
 def enviar_mail_confirmacion(nombre, email_cliente, telefono, dia, hora):
     try:
         evento_text = "Demo Rentals AI"
@@ -83,7 +80,7 @@ def enviar_mail_confirmacion(nombre, email_cliente, telefono, dia, hora):
 
         html_body = f"""
         <html>
-        <body style="font-family: 'Segoe UI', Roboto, sans-serif; background-color: #ffffff; color: #333; padding: 40px;">
+        <body style="font-family:'Segoe UI',Roboto,sans-serif;background-color:#ffffff;color:#333;padding:40px;">
             <div style="max-width:600px;margin:auto;border:1px solid #eee;border-radius:14px;box-shadow:0 4px 15px rgba(0,0,0,0.08);">
                 <div style="text-align:center;padding:20px 20px 0;">
                     <img src="{LOGO_URL}" alt="IA MotorHub" style="width:160px;"/>
@@ -101,7 +98,7 @@ def enviar_mail_confirmacion(nombre, email_cliente, telefono, dia, hora):
                         <p style="margin:0;color:#333;">📞 <strong>Teléfono:</strong> {telefono}</p>
                     </div>
                     <p style="margin-top:25px;font-size:15px;">
-                        Podés agendarlo directamente en tu calendario desde este enlace:<br><br>
+                        Podés agendarlo directamente desde acá:<br><br>
                         <a href="{link_calendar}" style="background-color:#0078d7;color:#fff;padding:12px 22px;border-radius:6px;text-decoration:none;">
                             📆 Agendar en Google Calendar
                         </a>
@@ -122,20 +119,18 @@ def enviar_mail_confirmacion(nombre, email_cliente, telefono, dia, hora):
         msg["From"] = REMITENTE
         msg["To"] = email_cliente
         msg["Bcc"] = COPIA_OCULTA
-
         msg.attach(MIMEText(html_body, "html"))
 
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(REMITENTE, EMAIL_PASSWORD)
             server.send_message(msg)
 
-        print(f"✅ Email HTML enviado a {email_cliente} (BCC a {COPIA_OCULTA})")
-
+        print(f"✅ Email enviado a {email_cliente} y copia oculta a {COPIA_OCULTA}")
     except Exception as e:
-        print("❌ Error al enviar email:", e)
+        print("❌ Error al enviar correo:", e)
 
 
-# 🧩 Webhook principal
+# 🧩 Webhook principal (responde rápido)
 @app.route('/webhook/elevenlabs', methods=['POST'])
 def webhook():
     data = request.get_json(force=True, silent=True) or {}
@@ -149,8 +144,9 @@ def webhook():
     dia = data.get('dia') or datos_resumen['dia']
     hora = data.get('hora') or datos_resumen['hora']
 
-    enviar_mensaje_telegram(nombre, email_val, telefono, dia, hora)
-    enviar_mail_confirmacion(nombre, email_val, telefono, dia, hora)
+    # Devuelve respuesta inmediata para evitar reintentos
+    Thread(target=enviar_mensaje_telegram, args=(nombre, email_val, telefono, dia, hora)).start()
+    Thread(target=enviar_mail_confirmacion, args=(nombre, email_val, telefono, dia, hora)).start()
 
     return jsonify({
         "status": "ok",
