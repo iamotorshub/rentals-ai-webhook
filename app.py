@@ -2,9 +2,6 @@ from flask import Flask, request, jsonify
 import os
 import re
 import requests
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 from urllib.parse import urlencode, quote_plus
 
@@ -65,7 +62,6 @@ def enviar_mensaje_telegram(nombre, email, telefono, dia, hora):
 # ==========================
 def generar_link_calendar(nombre, email, dia, hora):
     try:
-        # Parsear la fecha y hora recibidas
         fecha = datetime.strptime(f"{dia} {hora}", "%Y-%m-%d %H:%M")
         fin = fecha + timedelta(minutes=30)
         titulo = f"Demo Rentals AI con {nombre}"
@@ -83,62 +79,78 @@ def generar_link_calendar(nombre, email, dia, hora):
         return "https://calendar.google.com"
 
 # ==========================
-# FUNCIÓN: ENVIAR EMAIL AL CLIENTE + COPIA
+# FUNCIÓN: ENVIAR EMAIL AL CLIENTE + COPIA USANDO RESEND
 # ==========================
-def enviar_email(nombre, email_cliente, telefono, dia, hora):
-    smtp_user = os.environ.get('SMTP_USER')
-    smtp_pass = os.environ.get('SMTP_PASSWORD')
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+FROM_EMAIL = "Rentals AI <contacto@iamotorshub.com>"
 
-    if not smtp_user or not smtp_pass:
-        print("⚠️ SMTP_USER o SMTP_PASSWORD no definidos; correo no enviado")
+def enviar_email(nombre: str, email_cliente: str, telefono: str, dia: str, hora: str) -> None:
+    """
+    Envía un correo de confirmación al cliente y otro correo al equipo interno
+    utilizando la API de Resend.
+    """
+    if not RESEND_API_KEY:
+        print("⚠️ Falta RESEND_API_KEY; no se enviaron correos")
         return
 
-    link_calendar = generar_link_calendar(nombre, email_cliente, dia, hora)
-    asunto = f"Confirmación de demo - Rentals AI"
-    cuerpo = f"""
-    <html>
-    <body style="font-family: Arial; background-color: #ffffff; color: #333;">
-        <div style="max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; padding: 20px;">
-            <img src="https://drive.google.com/uc?export=view&id=13G29FFEEI8oK4zC1oSpgwA_-LM_T4KfL"
-                 style="max-width: 150px; display:block; margin:auto;">
-            <h2 style="color:#0b3d91; text-align:center;">Confirmación de tu demo en Rentals AI</h2>
-            <p>Hola <strong>{nombre}</strong>,</p>
-            <p>Gracias por agendar tu demo. Estos son los datos confirmados:</p>
-            <ul>
-                <li><b>Nombre:</b> {nombre}</li>
-                <li><b>Email:</b> {email_cliente}</li>
-                <li><b>Teléfono:</b> {telefono}</li>
-                <li><b>Día:</b> {dia}</li>
-                <li><b>Hora:</b> {hora}</li>
-            </ul>
-            <div style="text-align:center; margin-top:30px;">
-                <a href="{link_calendar}" 
-                   style="background-color:#0b3d91; color:white; padding:12px 25px; border-radius:6px; 
-                          text-decoration:none; font-weight:bold;">
-                   📅 Agendar en Google Calendar
-                </a>
-            </div>
-            <p style="margin-top: 30px;">Te esperamos en tu demo. Si querés reprogramarla, respondé a este correo.</p>
-            <p style="text-align:center; font-size:12px; color:#888;">© IA MOTORHUB 2025 · Rentals AI</p>
-        </div>
-    </body>
-    </html>
+    # Email para el cliente
+    asunto_cliente = "Confirmación de demo - Rentals AI"
+    cuerpo_cliente = f"""
+    <p>Hola <strong>{nombre}</strong>,</p>
+    <p>Gracias por agendar tu demo. Estos son los datos confirmados:</p>
+    <ul>
+      <li><b>Nombre:</b> {nombre}</li>
+      <li><b>Email:</b> {email_cliente}</li>
+      <li><b>Teléfono:</b> {telefono}</li>
+      <li><b>Día:</b> {dia}</li>
+      <li><b>Hora:</b> {hora}</li>
+    </ul>
+    <p>Nuestro equipo se pondrá en contacto contigo pronto.</p>
     """
 
-    msg = MIMEMultipart()
-    msg["From"] = smtp_user
-    msg["To"] = email_cliente
-    msg["Bcc"] = smtp_user
-    msg["Subject"] = asunto
-    msg.attach(MIMEText(cuerpo, "html"))
+    requests.post(
+        "https://api.resend.com/emails",
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "from": FROM_EMAIL,
+            "to": [email_cliente],
+            "reply_to": [FROM_EMAIL],
+            "subject": asunto_cliente,
+            "html": cuerpo_cliente,
+        },
+    )
 
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(smtp_user, smtp_pass)
-            server.send_message(msg)
-            print(f"✅ Email enviado a {email_cliente} y copia oculta a {smtp_user}")
-    except Exception as e:
-        print(f"❌ Error al enviar correo: {e}")
+    # Email interno al equipo
+    cuerpo_equipo = f"""
+    <h3>Nuevo lead de demo</h3>
+    <ul>
+      <li><b>Nombre:</b> {nombre}</li>
+      <li><b>Email:</b> {email_cliente}</li>
+      <li><b>Teléfono:</b> {telefono}</li>
+      <li><b>Día:</b> {dia}</li>
+      <li><b>Hora:</b> {hora}</li>
+    </ul>
+    """
+
+    requests.post(
+        "https://api.resend.com/emails",
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "from": FROM_EMAIL,
+            "to": ["contacto@iamotorshub.com"],
+            "reply_to": [email_cliente],
+            "subject": f"Nuevo lead: {nombre}",
+            "html": cuerpo_equipo,
+        },
+    )
+
+    print("✅ Correos enviados vía Resend")
 
 # ==========================
 # WEBHOOK PRINCIPAL
