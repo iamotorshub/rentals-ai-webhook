@@ -81,7 +81,7 @@ def generar_link_calendar(nombre, email, dia, hora):
 # ==========================
 # FUNCIÓN: ENVIAR EMAIL AL CLIENTE + COPIA USANDO RESEND
 # ==========================
-RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "re_Wo6XQfTH_BikNK56Ra1gsa6uohXLDEzMx")
 FROM_EMAIL = "Rentals AI <contacto@iamotorshub.com>"
 
 def enviar_email(nombre: str, email_cliente: str, telefono: str, dia: str, hora: str) -> None:
